@@ -100,11 +100,23 @@ export class NoteListService {
   }
 
   subNotesList() {
+    
     const q = query(this.getNotesRef(), limit(100));
     return onSnapshot(this.getNotesRef(), (list) => {
       this.normalNotes = [];
       list.forEach((element) => {
         this.normalNotes.push(this.setNoteObject(element.data(), element.id));
+      });
+      list.docChanges().forEach((change) => {
+        if (change.type === "added") {
+            console.log("New Note: ", change.doc.data());
+        }
+        if (change.type === "modified") {
+            console.log("Modified Note: ", change.doc.data());
+        }
+        if (change.type === "removed") {
+            console.log("Removed Note: ", change.doc.data());
+        }
       });
     });
   }
