@@ -22,15 +22,18 @@ import { Note } from '../interfaces/note.interface';
 export class NoteListService {
   trashNotes: Note[] = [];
   normalNotes: Note[] = [];
+  normalMarkedNotes: Note[] = []; 
 
   unsubTrash;
   unsubNotes;
+  unsubMarkedNotes;
 
   firestore: Firestore = inject(Firestore);
 
   constructor() {
-    this.unsubTrash = this.subTrashList();
     this.unsubNotes = this.subNotesList();
+    this.unsubMarkedNotes = this.subMarkedNotesList();
+    this.unsubTrash = this.subTrashList();
   }
 
   async deleteNote(colId: "notes" | "trash", docId: string){
@@ -80,6 +83,7 @@ export class NoteListService {
   ngonDestroy() {
     this.unsubTrash();
     this.unsubNotes();
+    this.unsubMarkedNotes();
   }
 
   bTrashList() {}
@@ -108,9 +112,9 @@ export class NoteListService {
   subMarkedNotesList() {
     const q = query(this.getNotesRef(),where("marked", "==", true), limit(3));
     return onSnapshot(this.getNotesRef(), (list) => {
-      this.normalNotes = [];
+      this.normalMarkedNotes = [];
       list.forEach((element) => {
-        this.normalNotes.push(this.setNoteObject(element.data(), element.id));
+        this.normalMarkedNotes.push(this.setNoteObject(element.data(), element.id));
       });
     });
   }
