@@ -8,10 +8,10 @@ import {
   addDoc,
   updateDoc,
   deleteDoc,
+  orderBy,
+  limit,
   query,
   where,
-  limit,
-  orderBy,
 } from '@angular/fire/firestore';
 import { Observable } from 'rxjs';
 import { Note } from '../interfaces/note.interface';
@@ -22,44 +22,36 @@ import { Note } from '../interfaces/note.interface';
 export class NoteListService {
   trashNotes: Note[] = [];
   normalNotes: Note[] = [];
-  normalMarkedNotes: Note[] = []; 
+  normalMarkedNotes: Note[] = [];
 
-  unsubTrash;
   unsubNotes;
   unsubMarkedNotes;
+  unsubTrash;
 
   firestore: Firestore = inject(Firestore);
 
   constructor() {
-    this.unsubNotes = this.subNotesList();
-    this.unsubMarkedNotes = this.subMarkedNotesList();
     this.unsubTrash = this.subTrashList();
-  }
-
-  async deleteNote(colId: "notes" | "trash", docId: string){
-    await deleteDoc(this.getSingleDocRef(colId, docId)).catch(
-      (err) => {console.log(err)}
-    )
+    this.unsubMarkedNotes = this.subNotesMarkedList();
+    this.unsubNotes = this.subNotesList();
   }
 
   async updateNote(note: Note) {
     if (note.id) {
       let docRef = this.getSingleDocRef(this.getColIdFromNote(note), note.id);
-      await updateDoc(docRef, this.getCleanJson(note))
-        .catch((err) => {
-          console.log(err);
-        })
-        .then();
+      await updateDoc(docRef, this.getCleanJson(note)).catch((err) => {
+        console.log(err);
+      });
     }
   }
 
-  getCleanJson(note:Note):{} {
+  getCleanJson(note: Note): {} {
     return {
       type: note.type,
       title: note.title,
       content: note.content,
       marked: note.marked,
-    }
+    };
   }
 
   getColIdFromNote(note: Note) {
@@ -70,28 +62,38 @@ export class NoteListService {
     }
   }
 
-  async addNote(item: Note, colId: "notes" | "trash") {
-    await addDoc(this.getNotesRef(), item)
-      .catch((err) => {
-        console.error(err);
-      })
-      .then((docRef) => {
-        console.log('Document written with ID: ', docRef?.id);
-      });
+  async deleteNote(colId: 'notes' | 'trash', docId: string) {
+    await deleteDoc(this.getSingleDocRef(colId, docId)).catch((err) => {
+      console.log(err);
+    });
   }
 
-  ngonDestroy() {
-    this.unsubTrash();
+  async addNote(item: Note, colId: 'notes' | 'trash') {
+    let collectionRef;
+
+    if (colId === 'notes') {
+      collectionRef = this.getNotesRef();
+    } else {
+      collectionRef = this.getTrashRef();
+    }
+
+    try {
+      const docRef = await addDoc(collectionRef, item);
+      console.log('Document written with ID:', docRef.id);
+    } catch (err) {
+      console.error('Error adding document: ', err);
+    }
+  }
+
+  ngOnDestroy() {
     this.unsubNotes();
     this.unsubMarkedNotes();
+    this.unsubTrash();
   }
 
-  bTrashList() {}
-
-  bNotesList() {}
-
   subTrashList() {
-    return onSnapshot(this.getTrashRef(), (list) => {
+    const q = query(this.getTrashRef(), limit(50));
+    return onSnapshot(q, (list) => {
       this.trashNotes = [];
       list.forEach((element) => {
         this.trashNotes.push(this.setNoteObject(element.data(), element.id));
@@ -100,46 +102,51 @@ export class NoteListService {
   }
 
   subNotesList() {
-    
-    const q = query(this.getNotesRef(), limit(100));
-    return onSnapshot(this.getNotesRef(), (list) => {
+    const q = query(this.getNotesRef(), orderBy('title'), limit(50));
+    return onSnapshot(q, (list) => {
       this.normalNotes = [];
       list.forEach((element) => {
         this.normalNotes.push(this.setNoteObject(element.data(), element.id));
+        console.log(element.data());
       });
       list.docChanges().forEach((change) => {
-        if (change.type === "added") {
-            console.log("New Note: ", change.doc.data());
+        if (change.type === 'added') {
+          console.log('New note: ', change.doc.data());
         }
-        if (change.type === "modified") {
-            console.log("Modified Note: ", change.doc.data());
+        if (change.type === 'modified') {
+          console.log('Modified note: ', change.doc.data());
         }
-        if (change.type === "removed") {
-            console.log("Removed Note: ", change.doc.data());
+        if (change.type === 'removed') {
+          console.log('Removed note: ', change.doc.data());
         }
       });
     });
   }
 
-  subMarkedNotesList() {
-    const q = query(this.getNotesRef(),where("marked", "==", true), limit(3));
-    return onSnapshot(this.getNotesRef(), (list) => {
-      this.normalMarkedNotes = [];
+  subNotesMarkedList() {
+    const q = query(this.getNotesRef(), where('marked', '==', true), limit(50));
+    return onSnapshot(q, (list) => {
+      this.normalNotes = [];
       list.forEach((element) => {
-        this.normalMarkedNotes.push(this.setNoteObject(element.data(), element.id));
+        this.normalMarkedNotes.push(
+          this.setNoteObject(element.data(), element.id),
+        );
+        console.log(element.data());
       });
     });
   }
 
   setNoteObject(obj: any, id: string): Note {
     return {
-      id: id || '',
+      id: id,
       type: obj.type || 'note',
       title: obj.title || '',
       content: obj.content || '',
       marked: obj.marked || false,
     };
   }
+
+  //const itemCollection = collection(this.firestore, 'items');
 
   getNotesRef() {
     return collection(this.firestore, 'notes');
